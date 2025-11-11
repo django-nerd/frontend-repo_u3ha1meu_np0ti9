@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion, useScroll, useTransform } from 'framer-motion'
+import { motion, useMotionTemplate, useMotionValue, useScroll, useSpring, useTransform } from 'framer-motion'
 import { Flame, Sparkles, Phone, MessageCircle, MapPin, Play, Pause, Mail, Stars } from 'lucide-react'
 
 function useParallax(offset = 0.2) {
@@ -19,12 +19,12 @@ const servicesList = [
 ]
 
 function FloatingParticles() {
-  const particles = useMemo(() => Array.from({ length: 24 }, (_, i) => ({
+  const particles = useMemo(() => Array.from({ length: 28 }, (_, i) => ({
     id: i,
     left: Math.random() * 100,
     size: Math.random() * 6 + 2,
-    duration: Math.random() * 12 + 8,
-    delay: Math.random() * 6,
+    duration: Math.random() * 14 + 8,
+    delay: Math.random() * 8,
     blur: Math.random() * 2 + 1,
   })), [])
 
@@ -33,8 +33,8 @@ function FloatingParticles() {
       {particles.map(p => (
         <motion.span
           key={p.id}
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: [0, 0.8, 0], y: [-40, 0, -80] }}
+          initial={{ opacity: 0, y: 60 }}
+          animate={{ opacity: [0, 0.85, 0], y: [-60, 0, -120] }}
           transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: 'easeInOut' }}
           style={{ left: `${p.left}%`, width: p.size, height: p.size, filter: `blur(${p.blur}px)` }}
           className="absolute bottom-0 rounded-full bg-gradient-to-tr from-amber-300/30 via-yellow-200/40 to-white/30"
@@ -44,10 +44,90 @@ function FloatingParticles() {
   )
 }
 
+function Grain() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[5] opacity-[0.08] mix-blend-overlay" style={{ backgroundImage: 'url(https://grainy-gradients.vercel.app/noise.svg)' }} />
+  )
+}
+
+function CursorGlow() {
+  const x = useMotionValue(-200)
+  const y = useMotionValue(-200)
+  const smoothX = useSpring(x, { stiffness: 200, damping: 30 })
+  const smoothY = useSpring(y, { stiffness: 200, damping: 30 })
+  const radial = useMotionTemplate`radial-gradient(300px 300px at ${smoothX}px ${smoothY}px, rgba(255,198,88,0.18), rgba(0,0,0,0))`
+
+  useEffect(() => {
+    const handle = (e) => {
+      x.set(e.clientX)
+      y.set(e.clientY)
+    }
+    window.addEventListener('pointermove', handle)
+    return () => window.removeEventListener('pointermove', handle)
+  }, [x, y])
+
+  return (
+    <motion.div aria-hidden style={{ background: radial }} className="pointer-events-none fixed inset-0 z-[6]" />
+  )
+}
+
+function ScrollProgressBar() {
+  const { scrollYProgress } = useScroll()
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 20, mass: 0.2 })
+  return (
+    <motion.div style={{ scaleX }} className="fixed inset-x-0 top-0 z-[60] h-1 origin-left bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-600" />
+  )
+}
+
+function MagneticButton({ children, className = '', onClick }) {
+  const ref = useRef(null)
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+  const rotate = useTransform(x, [-20, 20], [-3, 3])
+  const springX = useSpring(x, { stiffness: 300, damping: 20 })
+  const springY = useSpring(y, { stiffness: 300, damping: 20 })
+
+  const onMove = (e) => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect) return
+    const relX = e.clientX - (rect.left + rect.width / 2)
+    const relY = e.clientY - (rect.top + rect.height / 2)
+    x.set(Math.max(-20, Math.min(20, relX / 4)))
+    y.set(Math.max(-12, Math.min(12, relY / 6)))
+  }
+  const onLeave = () => { x.set(0); y.set(0) }
+
+  return (
+    <motion.button
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      onClick={onClick}
+      style={{ x: springX, y: springY, rotate }}
+      className={`group relative overflow-hidden rounded-full bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-7 py-3 text-sm font-semibold text-black shadow-lg shadow-amber-800/30 ${className}`}
+    >
+      <span className="relative z-10">{children}</span>
+      <span className="absolute inset-0 -translate-x-full bg-white/30 blur-md transition-transform duration-700 group-hover:translate-x-0" />
+    </motion.button>
+  )
+}
+
 function Hero({ onBookClick }) {
   const { ref, y } = useParallax(0.3)
+  const lensX = useMotionValue(50)
+  const lensY = useMotionValue(50)
+  const lens = useMotionTemplate`radial-gradient(600px 300px at ${lensX}% ${lensY}%, rgba(255,213,120,0.12), rgba(0,0,0,0))`
+
+  const onMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    lensX.set(x)
+    lensY.set(y)
+  }
+
   return (
-    <section ref={ref} className="relative h-[90vh] w-full overflow-hidden">
+    <section ref={ref} onMouseMove={onMouseMove} className="relative h-[92vh] w-full overflow-hidden">
       <video
         className="absolute inset-0 h-full w-full object-cover"
         src="https://videos.pexels.com/video-files/854089/854089-uhd_2560_1440_30fps.mp4"
@@ -57,6 +137,7 @@ function Hero({ onBookClick }) {
         playsInline
       />
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/60 to-black/80" />
+      <motion.div aria-hidden style={{ background: lens }} className="absolute inset-0" />
       <FloatingParticles />
       <motion.div style={{ y }} className="relative z-10 flex h-full flex-col items-center justify-center text-center px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9 }}>
@@ -82,10 +163,7 @@ function Hero({ onBookClick }) {
           Divine Blessings. Powerful Poojas. Eternal Protection.
         </motion.p>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }} className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <button onClick={onBookClick} className="group relative overflow-hidden rounded-full bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-7 py-3 text-sm font-semibold text-black shadow-lg shadow-amber-800/30">
-            <span className="relative z-10">Book Your Pooja</span>
-            <span className="absolute inset-0 -translate-x-full bg-white/30 blur-md transition-transform duration-700 group-hover:translate-x-0" />
-          </button>
+          <MagneticButton onClick={onBookClick}>Book Your Pooja</MagneticButton>
           <a href="#about" className="text-amber-200/80 hover:text-amber-100 transition-colors">Learn More</a>
         </motion.div>
       </motion.div>
@@ -126,6 +204,42 @@ function About() {
   )
 }
 
+function TiltCard({ children, glow = true }) {
+  const ref = useRef(null)
+  const rx = useMotionValue(0)
+  const ry = useMotionValue(0)
+  const sx = useSpring(ry, { stiffness: 200, damping: 20 }) // rotateY
+  const sy = useSpring(rx, { stiffness: 200, damping: 20 }) // rotateX
+  const glossX = useMotionValue(50)
+  const glossY = useMotionValue(50)
+  const gloss = useMotionTemplate`radial-gradient(400px 200px at ${glossX}% ${glossY}%, rgba(255,240,180,0.12), rgba(0,0,0,0))`
+
+  const onMove = (e) => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect) return
+    const px = (e.clientX - rect.left) / rect.width - 0.5
+    const py = (e.clientY - rect.top) / rect.height - 0.5
+    rx.set(-py * 12)
+    ry.set(px * 16)
+    glossX.set((px + 0.5) * 100)
+    glossY.set((py + 0.5) * 100)
+  }
+  const onLeave = () => { rx.set(0); ry.set(0) }
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      style={{ rotateX: sy, rotateY: sx, transformStyle: 'preserve-3d' }}
+      className="group relative will-change-transform"
+    >
+      {glow && <motion.div aria-hidden style={{ background: gloss }} className="pointer-events-none absolute inset-0 rounded-2xl" />}
+      {children}
+    </motion.div>
+  )
+}
+
 function Services({ onBookClick }) {
   return (
     <section id="services" className="relative bg-gradient-to-b from-[#0c0a09] to-[#0a0908] py-24">
@@ -146,23 +260,23 @@ function Services({ onBookClick }) {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ delay: i * 0.05, duration: 0.5 }}
-              className="group relative overflow-hidden rounded-2xl border border-amber-900/30 bg-gradient-to-br from-stone-950 via-stone-900/60 to-black p-6"
             >
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(ellipse_at_top,rgba(255,200,80,0.15),transparent_60%)]" />
-              <div className="relative">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-600/15 ring-1 ring-amber-400/20">
-                  <Stars className="h-5 w-5 text-amber-300" />
+              <TiltCard>
+                <div className="relative overflow-hidden rounded-2xl border border-amber-900/30 bg-gradient-to-br from-stone-950 via-stone-900/60 to-black p-6">
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(ellipse_at_top,rgba(255,200,80,0.15),transparent_60%)]" />
+                  <div className="relative">
+                    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-600/15 ring-1 ring-amber-400/20">
+                      <Stars className="h-5 w-5 text-amber-300" />
+                    </div>
+                    <h4 className="text-xl font-semibold text-amber-100">{s.title}</h4>
+                    <p className="mt-2 text-sm text-amber-100/70">{s.desc}</p>
+                    <div className="mt-5 flex items-center justify-between">
+                      <span className="text-amber-300/80 text-sm">On Request</span>
+                      <MagneticButton className="!px-4 !py-2" onClick={onBookClick}>Book Now</MagneticButton>
+                    </div>
+                  </div>
                 </div>
-                <h4 className="text-xl font-semibold text-amber-100">{s.title}</h4>
-                <p className="mt-2 text-sm text-amber-100/70">{s.desc}</p>
-                <div className="mt-5 flex items-center justify-between">
-                  <span className="text-amber-300/80 text-sm">On Request</span>
-                  <button onClick={onBookClick} className="relative overflow-hidden rounded-full border border-amber-400/30 px-4 py-2 text-sm text-amber-100/90 transition hover:bg-amber-500/10">
-                    <span className="relative z-10">Book Now</span>
-                    <span className="absolute inset-0 -translate-x-full bg-white/20 blur-sm transition-transform duration-700 group-hover:translate-x-0" />
-                  </button>
-                </div>
-              </div>
+              </TiltCard>
             </motion.div>
           ))}
         </div>
@@ -187,7 +301,8 @@ function Gallery() {
     },
   ]
   return (
-    <section id="gallery" className="bg-[#0a0908]">
+    <section id="gallery" className="relative bg-[#0a0908]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_10%,rgba(255,200,120,0.08),transparent_40%),radial-gradient(circle_at_70%_90%,rgba(200,100,50,0.06),transparent_40%)]" />
       {sections.map((s, i) => (
         <div key={i} className="relative h-[50vh] w-full overflow-hidden">
           <div className="absolute inset-0" style={{ backgroundImage: `url(${s.img})`, backgroundPosition: 'center', backgroundSize: 'cover', backgroundAttachment: 'fixed' }} />
@@ -200,6 +315,30 @@ function Gallery() {
         </div>
       ))}
     </section>
+  )
+}
+
+function MantraMarquee() {
+  const items = [
+    'Om Namo Bhagavate Vāsudevāya',
+    'Sree Vishnumaya Sarana',
+    'Om Hreem Shreem Kleem',
+    'Sarva Bhaya Vinashaaya Namah',
+  ]
+  return (
+    <div className="relative overflow-hidden bg-gradient-to-b from-[#0a0908] to-[#0b0a09]">
+      <div className="absolute inset-0 bg-[radial-gradient(600px_200px_at_50%_0%,rgba(255,210,120,0.08),transparent)]" />
+      <motion.div
+        initial={{ x: 0 }}
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ repeat: Infinity, duration: 30, ease: 'linear' }}
+        className="flex whitespace-nowrap border-y border-white/5 py-4 text-amber-200/80"
+      >
+        {[...items, ...items].map((t, i) => (
+          <span key={i} className="mx-8 text-sm">✦ {t}</span>
+        ))}
+      </motion.div>
+    </div>
   )
 }
 
@@ -224,8 +363,9 @@ function Testimonials() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ delay: i * 0.1 }}
-              className="rounded-2xl border border-amber-900/30 bg-gradient-to-br from-stone-950/90 to-black p-6 text-amber-100 shadow-inner"
+              className="relative overflow-hidden rounded-2xl border border-amber-900/30 bg-gradient-to-br from-stone-950/90 to-black p-6 text-amber-100 shadow-inner"
             >
+              <div className="pointer-events-none absolute -top-20 -right-20 h-60 w-60 rounded-full bg-amber-500/10 blur-3xl" />
               <p className="italic">“{t.quote}”</p>
               <footer className="mt-4 text-sm text-amber-200/80">{t.name}</footer>
             </motion.blockquote>
@@ -292,7 +432,7 @@ function ContactBooking({ backendUrl }) {
             <div className="mt-6 space-y-3 text-amber-100/80">
               <p className="flex items-center gap-2"><MapPin className="h-5 w-5 text-amber-300" /> Vadakkumpuram, Kerala</p>
               <a href="tel:+919000000000" className="flex items-center gap-2 hover:text-amber-100"><Phone className="h-5 w-5 text-amber-300" /> +91 90000 00000</a>
-              <a href="https://wa.me/919000000000" target="_blank" className="flex items-center gap-2 hover:text-amber-100"><MessageCircle className="h-5 w-5 text-amber-300" /> WhatsApp</a>
+              <a href="https://wa.me/919000000000" target="_blank" className="flex items-center gap-2 hover:text-amber-100" rel="noreferrer"><MessageCircle className="h-5 w-5 text-amber-300" /> WhatsApp</a>
               <a href="mailto:temple@example.com" className="flex items-center gap-2 hover:text-amber-100"><Mail className="h-5 w-5 text-amber-300" /> temple@example.com</a>
             </div>
             <div className="mt-8 overflow-hidden rounded-xl ring-1 ring-white/10">
@@ -309,7 +449,8 @@ function ContactBooking({ backendUrl }) {
             </div>
           </div>
           <div>
-            <form onSubmit={handleSubmit} className="rounded-2xl border border-amber-900/30 bg-gradient-to-br from-stone-950/90 to-black p-6 ring-1 ring-white/5">
+            <form onSubmit={handleSubmit} className="relative rounded-2xl border border-amber-900/30 bg-gradient-to-br from-stone-950/90 to-black p-6 ring-1 ring-white/5">
+              <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-amber-500/10 blur-3xl" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-amber-200/80">Full Name</label>
@@ -343,10 +484,9 @@ function ContactBooking({ backendUrl }) {
                 </label>
               </div>
               <div className="mt-6 flex items-center gap-3">
-                <button disabled={submitting} className="group relative overflow-hidden rounded-full bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-6 py-2.5 text-sm font-semibold text-black shadow-lg shadow-amber-800/30 disabled:opacity-70">
-                  <span className="relative z-10">{submitting ? 'Submitting…' : 'Book a Pooja'}</span>
-                  <span className="absolute inset-0 -translate-x-full bg-white/30 blur-md transition-transform duration-700 group-hover:translate-x-0" />
-                </button>
+                <MagneticButton className="disabled:opacity-70" onClick={() => {}}>
+                  {submitting ? 'Submitting…' : 'Book a Pooja'}
+                </MagneticButton>
                 {status && (
                   <span className={`text-sm ${status.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>{status.message}</span>
                 )}
@@ -399,7 +539,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0b0a09] text-white">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-black/30 backdrop-blur">
+      <ScrollProgressBar />
+      <Grain />
+      <CursorGlow />
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600/20 ring-1 ring-amber-400/30">
@@ -413,7 +556,7 @@ export default function App() {
             <a href="#gallery" className="hover:text-amber-100">Gallery</a>
             <a href="#testimonials" className="hover:text-amber-100">Experiences</a>
             <a href="#contact" className="hover:text-amber-100">Contact</a>
-            <button onClick={handleBookClick} className="rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 text-amber-100 hover:bg-amber-500/20">Book</button>
+            <MagneticButton onClick={handleBookClick}>Book</MagneticButton>
           </nav>
         </div>
       </header>
@@ -423,6 +566,7 @@ export default function App() {
         <About />
         <Services onBookClick={handleBookClick} />
         <Gallery />
+        <MantraMarquee />
         <div id="testimonials"><Testimonials /></div>
         <div ref={bookingRef}><ContactBooking backendUrl={backendUrl} /></div>
       </main>
